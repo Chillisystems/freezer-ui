@@ -1,0 +1,9 @@
+---
+horizon_path: /usr/share/openstack-dashboard
+dashboard_path: "{{ horizon_path }}/openstack_dashboard"
+
+freezer_ui_revision: stable/ocata
+
+panel_src_path: /usr/local/lib/python2.7/dist-packages
+panel_dest_path: "{{ horizon_path }}/disaster_recovery"
+

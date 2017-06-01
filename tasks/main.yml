@@ -1,0 +1,80 @@
+---
+
+- name: Install freezer-web-ui dependiences
+  apt:
+    name: '{{ item }}'
+    state: present
+    update_cache: yes
+    force: yes
+  with_items:
+    - python-pip
+    - python-dev
+
+- name: UI - Install freezer-web-ui deps package
+  pip:
+    name: '{{ item }}'
+    state: latest
+  with_items:
+    - pip
+    - pbr
+  notify:
+    - restart apache2
+
+- name: UI - Install freezer-web-ui package
+  pip:
+    name: "git+https://github.com/Chillisystems/freezer-web-ui.git@{{ monasca_ui_revision | default('master') }}#egg=freezer-web-ui"
+    state: present
+    editable: no
+  notify:
+    - restart apache2
+
+- name: UI - Link dashboard
+  file:
+    src: '{{ panel_src_path }}/disaster_recovery/enabled/{{ item }}'
+    dest: '{{ dashboard_path }}/local/enabled/{{ item }}'
+    state: link
+    force: no
+  with_items:
+    - _5050_freezer.py
+
+- name: UI - Link disaster_recovery directory
+  file:
+    src: '{{ panel_src_path }}/disaster_recovery'
+    dest: '{{ panel_dest_path }}'
+    state: link
+    force: no
+
+- name: UI - Create disaster_recovery/config
+  file:
+    path: '{{ panel_src_path }}/disaster_recovery/config'
+    state: directory
+
+- name: UI - Create config file from template
+  template:
+    src: local_settings.py.j2
+    dest: '{{ panel_src_path }}/disaster_recovery/config/local_settings.py'
+
+- meta: flush_handlers
+
+- name: Check if horizon is installed
+  stat:
+    path: '{{ horizon_path }}/manage.py'
+  register: horizon_manage
+
+- name: UI - Collect the static files
+  command: python {{ horizon_path }}/manage.py collectstatic --noinput
+  environment:
+    PYTHONPATH: '{{ panel_src_path }}'
+  when: horizon_manage.stat.exists
+
+- name: UI - Update offline compression manifest
+  command: python {{ horizon_path }}/manage.py compress --force
+  environment:
+    PYTHONPATH: '{{ panel_src_path }}'
+  when: horizon_manage.stat.exists
+
+- name: Enable apache
+  service:
+    name: apache2
+    state: started
+    enabled: yes
